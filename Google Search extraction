@@ -12,7 +12,28 @@ SERP_API_KEY = "Key"  # 🔒 Replace with your SerpAPI key
 # Step 4: Define search queries
 queries = [
     "Cable tray manufacturer in Maharashtra",
-    # You can add more queries here
+    "Cable tray manufacturer in Mumbai"
+    "Cable tray manufacturer in Pune",
+    "Cable tray manufacturer in Nagpur"
+    "Cable tray manufacturer in Nashik",
+    "Cable tray manufacturer in Delhi"
+    "Cable tray manufacturer in Rajasthan",
+    "Cable tray manufacturer in Jaipur"
+    "Cable tray manufacturer in Gurgaon",
+    "Cable tray manufacturer in Gujarat"
+    "Cable tray manufacturer in Ahmedabad",
+    "Cable tray manufacturer in Chennai"
+    "Cable tray manufacturer in Bangalore",
+    "Cable tray manufacturer in Karnataka"
+    "Cable tray manufacturer in Hyderabad",
+    "Cable tray manufacturer in Coimbatore"
+    "Cable tray manufacturer in Telangana",
+    "Cable tray manufacturer in Kolkata"
+    "Cable tray manufacturer in UP",
+    "Cable tray manufacturer in Uttar Pradesh"
+    "Cable tray manufacturer in Punjab",
+    "Cable tray manufacturer in Rajkot"
+# You can add more queries here
 ]
 
 # Step 5: Function to get top results from SerpAPI
