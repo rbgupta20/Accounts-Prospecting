@@ -1,0 +1,60 @@
+# Step 1: Install required packages
+!pip install google-search-results pandas
+
+# Step 2: Import libraries
+from serpapi import GoogleSearch
+import pandas as pd
+import time
+
+# Step 3: Your SerpAPI key
+SERP_API_KEY = "Key"  # 🔒 Replace with your SerpAPI key
+
+# Step 4: Define search queries
+queries = [
+    "Cable tray manufacturer in Maharashtra",
+    # You can add more queries here
+]
+
+# Step 5: Function to get top results from SerpAPI
+def get_google_search_results(query, num_results=30):
+    all_results = []
+    results_per_page = 10  # SerpAPI returns max 10 per request for 'start'
+    
+    for start in range(0, num_results, results_per_page):
+        params = {
+            "engine": "google",
+            "q": query,
+            "api_key": SERP_API_KEY,
+            "num": results_per_page,
+            "start": start
+        }
+        search = GoogleSearch(params)
+        data = search.get_dict()
+        
+        if "organic_results" in data:
+            all_results.extend(data["organic_results"])
+        time.sleep(2)  # polite delay to avoid throttling
+    
+    return all_results
+
+# Step 6: Collect results for all queries
+all_data = []
+
+for query in queries:
+    results = get_google_search_results(query, num_results=30)
+    for res in results:
+        all_data.append({
+            "query": query,
+            "position": res.get("position", ""),
+            "title": res.get("title", ""),
+            "link": res.get("link", ""),
+            "snippet": res.get("snippet", ""),
+            "displayed_link": res.get("displayed_link", "")
+        })
+
+# Step 7: Convert to DataFrame and save as CSV
+df = pd.DataFrame(all_data)
+df.to_csv("google_search_results.csv", index=False)
+
+print("✅ CSV saved: google_search_results.csv")
+df.head()
