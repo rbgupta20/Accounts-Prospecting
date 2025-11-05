@@ -1,0 +1,59 @@
+# Step 1: Install SerpAPI client
+!pip install google-search-results pandas
+
+# Step 2: Import required libraries
+import pandas as pd
+from serpapi import GoogleSearch
+import re
+
+# Step 3: Set your SerpAPI key
+SERP_API_KEY = "KEY"  # 🔒 Replace with your actual key
+
+# Step 4: Function to find GSTIN
+def find_gstin(company_name, city=None):
+    query = f"{company_name} GST number"
+    if city:
+        query += f" {city}"
+
+    params = {
+        "engine": "google",
+        "q": query,
+        "api_key": SERP_API_KEY
+    }
+
+    try:
+        search = GoogleSearch(params)
+        results = search.get_dict()
+
+        gstins = []
+        if "organic_results" in results:
+            for result in results["organic_results"]:
+                snippet = result.get("snippet", "")
+                # Extract GSTIN (15-char alphanumeric code)
+                found = re.findall(r"\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}\b", snippet)
+                gstins.extend(found)
+
+        return ", ".join(set(gstins)) if gstins else ""
+    except Exception as e:
+        print(f"Error fetching GSTIN for {company_name}: {e}")
+        return ""
+
+# Step 5: Upload your CSV
+from google.colab import files
+uploaded = files.upload()
+
+# The uploaded file will appear as the key of the uploaded dict
+file_name = list(uploaded.keys())[0]
+df = pd.read_csv(file_name)
+
+# Step 6: Add a new column for GSTIN
+df["GSTIN"] = df["Company Name"].apply(find_gstin)
+
+# Step 7: Save results to new CSV
+output_file = "companies_with_gstin.csv"
+df.to_csv(output_file, index=False)
+
+# Step 8: Download the results
+files.download(output_file)
+
+print("✅ Done! File 'companies_with_gstin.csv' is ready for download.")
