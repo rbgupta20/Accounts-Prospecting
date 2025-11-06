@@ -25,3 +25,8 @@ Limitation: Works for companies having Linkedin Page
   b. Cleaned Link and got the Parent Link using simple Python code
   c. From Parent Link get structured date
       - Company Name
+      - Company Description/Profile/About us
+      - Products Sold
+      - Address
+      - Phone number
+      - Email Id
