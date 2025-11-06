@@ -1,0 +1,27 @@
+1. Linkedin for Prospecting
+  a. Company Tab: Search for a keyword ex: "Cable Tray Manufacturer"
+  b. Put other required filters: Location, Employee account etc
+  c. Output: Companies with 10 results per page
+  d. Manually copy paste these details into Chatgpt and get structured output
+      - Company Name, Industry, Location, Followers, Summary/Key Products, Category
+  e. Use Company Name to get GSTINs from Google using Serp API or Pyautogui
+  f. From GSTIN: get GSTIN enrichment thorugh Jamku (Pyautogui/Selenium)
+  g. Check Relevancy using LLM API from field: "Summary/Key Products"
+
+
+2. For a given Company Name: how to check Relevancy
+  a. Using "Company Name + Linkedin" searched on Google through Pyautogui, extarcted Linkedin Link of the company
+  b. Through Selenium, forem the above link, extarcted data
+    - Overview, Website, Industry, Company size, Headquarters, Specialities
+  c. Through Overview & Specialities: check for Relevancy using LLM API
+
+*Above can also be used to find HQ & Industry for a given company name
+Limitation: Works for companies having Linkedin Page
+
+
+3. Google for Propsecting
+  a. For Search terms such as "Cable Tray manufacturers in Maharashtra":, used SearchAPI for getting top 30 search results
+      - POsition, Title, Link, Snippet
+  b. Cleaned Link and got the Parent Link using simple Python code
+  c. From Parent Link get structured date
+      - Company Name
