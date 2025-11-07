@@ -1,0 +1,118 @@
+# =============================
+# 📦 STEP 1: Install dependencies
+# =============================
+!pip install pandas requests tqdm
+
+# =============================
+# 📂 STEP 2: Import libraries
+# =============================
+import pandas as pd
+import requests
+from tqdm import tqdm
+from google.colab import files
+import json
+import time
+
+# =============================
+# ⚙️ STEP 3: User inputs DeepSeek API key
+# =============================
+DEEPSEEK_API_KEY = input("Enter your DeepSeek API Key: ").strip()
+
+# =============================
+# 📤 STEP 4: Upload CSV
+# =============================
+print("📁 Please upload your CSV file (must contain: Company Name, Company Profile, Company Category)...")
+uploaded = files.upload()
+
+file_name = list(uploaded.keys())[0]
+df = pd.read_csv(file_name)
+
+# ✅ Check required columns
+required_cols = ["Company Name", "Company Profile", "Company Category"]
+for col in required_cols:
+    if col not in df.columns:
+        raise ValueError(f"❌ Missing required column: '{col}'")
+
+# =============================
+# 🤖 STEP 5: Define DeepSeek API function
+# =============================
+def check_steel_requirement(company_name, profile, category):
+    """
+    Calls DeepSeek API to check if the company likely uses steel raw materials.
+    """
+    prompt = f"""
+    You are a B2B materials analyst.
+
+    Based on the following company information, determine whether this company
+    likely requires steel raw materials such as HR Coil, HR Plates, Angles, Channels,
+    or other steel products in their business operations.
+
+    Respond strictly in JSON format as:
+    {{
+      "requires_steel": "Yes" or "No",
+      "reason": "short reason (1-2 lines)"
+    }}
+
+    ---
+    Company Name: {company_name}
+    Company Profile: {profile}
+    Company Category: {category}
+    ---
+    """
+
+    url = "https://api.deepseek.com/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [
+            {"role": "system", "content": "You are a precise B2B materials analyst."},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.2
+    }
+
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
+        result_text = response.json()["choices"][0]["message"]["content"]
+
+        try:
+            result_json = json.loads(result_text)
+            return result_json.get("requires_steel", ""), result_json.get("reason", "")
+        except json.JSONDecodeError:
+            return "Error", f"Invalid JSON: {result_text[:120]}..."
+
+    except Exception as e:
+        return "Error", str(e)
+
+# =============================
+# 🚀 STEP 6: Process each company
+# =============================
+results = []
+for _, row in tqdm(df.iterrows(), total=len(df)):
+    company_name = row["Company Name"]
+    profile = str(row["Company Profile"])
+    category = str(row["Company Category"])
+
+    requires_steel, reason = check_steel_requirement(company_name, profile, category)
+    results.append({
+        "Company Name": company_name,
+        "Requires Steel": requires_steel,
+        "Reason": reason
+    })
+
+    # optional delay to avoid API throttling
+    time.sleep(1)
+
+# =============================
+# 📊 STEP 7: Save and auto-download
+# =============================
+output_df = pd.DataFrame(results)
+output_filename = "steel_requirement_results.csv"
+output_df.to_csv(output_filename, index=False)
+
+print("\n✅ Processing complete! File saved as:", output_filename)
+files.download(output_filename)
