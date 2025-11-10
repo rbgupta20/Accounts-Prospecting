@@ -1,59 +1,128 @@
-# Step 1: Install SerpAPI client
-!pip install google-search-results pandas
+# ==========================================
+# STEP 1: Install dependencies
+# ==========================================
+!pip install requests pandas tqdm
 
-# Step 2: Import required libraries
+# ==========================================
+# STEP 2: Import libraries
+# ==========================================
+import requests
 import pandas as pd
-from serpapi import GoogleSearch
 import re
+from tqdm import tqdm
+from google.colab import files
 
-# Step 3: Set your SerpAPI key
-SERP_API_KEY = "KEY"  # 🔒 Replace with your actual key
+# ==========================================
+# STEP 3: Ask for Serper API key
+# ==========================================
+SERPER_API_KEY = input("🔑 Enter your Serper API key: ").strip()
 
-# Step 4: Function to find GSTIN
-def find_gstin(company_name, city=None):
-    query = f"{company_name} GST number"
+# ==========================================
+# STEP 4: Function to extract GSTINs along with accurate company names
+# ==========================================
+def find_gstin_with_context(original_name, city=None):
+    query = f'"{original_name}" GSTIN'
     if city:
         query += f" {city}"
 
-    params = {
-        "engine": "google",
-        "q": query,
-        "api_key": SERP_API_KEY
-    }
+    url = "https://google.serper.dev/search"
+    headers = {"X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json"}
+    payload = {"q": query}
 
     try:
-        search = GoogleSearch(params)
-        results = search.get_dict()
+        response = requests.post(url, headers=headers, json=payload)
+        data = response.json()
 
-        gstins = []
-        if "organic_results" in results:
-            for result in results["organic_results"]:
-                snippet = result.get("snippet", "")
-                # Extract GSTIN (15-char alphanumeric code)
-                found = re.findall(r"\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}\b", snippet)
-                gstins.extend(found)
+        rows = []
+        gstin_pattern = r"\b\d{2}[A-Z]{5}\d{4}[A-Z]{1}[A-Z\d]{1}Z[A-Z\d]{1}\b"
 
-        return ", ".join(set(gstins)) if gstins else ""
+        # Combine all search result sections
+        all_sections = []
+        for key in ["organic", "answerBox", "knowledgeGraph"]:
+            if key in data:
+                section = data[key]
+                if isinstance(section, list):
+                    all_sections.extend(section)
+                else:
+                    all_sections.append(section)
+
+        for item in all_sections:
+            title = item.get("title", "")
+            snippet = item.get("snippet", "") or item.get("description", "")
+            link = item.get("link", "")
+            combined_text = f"{title}\n{snippet}\n{link}"
+
+            # Find all GSTINs in text
+            gstins = re.findall(gstin_pattern, combined_text)
+            if not gstins:
+                continue
+
+            # Try to extract accurate company name
+            matched_name = original_name
+            clean_title = re.sub(gstin_pattern, "", title).strip()
+            clean_snippet = re.sub(gstin_pattern, "", snippet).strip()
+
+            # Prefer company name from title if short and meaningful
+            if len(clean_title.split()) <= 10 and len(clean_title) > 3:
+                matched_name = clean_title
+            else:
+                # Look for likely company name patterns in snippet
+                name_match = re.search(
+                    r"([A-Za-z0-9&\.\s\-]*?(?:Pvt|Private|Ltd|Limited|LLP|Industries|Enterprise|Company|Corporation|Fabricators|Traders|Engineering|Steels|Metals)[A-Za-z0-9&\.\s\-]*)",
+                    clean_snippet,
+                    re.IGNORECASE
+                )
+                if name_match:
+                    matched_name = name_match.group(1).strip()
+
+            # Store each found GSTIN with company name and link
+            for gst in gstins:
+                rows.append({
+                    "Original Company": original_name,
+                    "Matched Company": matched_name,
+                    "GSTIN": gst,
+                    "Source Link": link
+                })
+
+        return rows
+
     except Exception as e:
-        print(f"Error fetching GSTIN for {company_name}: {e}")
-        return ""
+        print(f"⚠️ Error fetching data for {original_name}: {e}")
+        return []
 
-# Step 5: Upload your CSV
-from google.colab import files
+# ==========================================
+# STEP 5: Upload CSV file
+# ==========================================
 uploaded = files.upload()
-
-# The uploaded file will appear as the key of the uploaded dict
 file_name = list(uploaded.keys())[0]
 df = pd.read_csv(file_name)
 
-# Step 6: Add a new column for GSTIN
-df["GSTIN"] = df["Company Name"].apply(find_gstin)
+if "Company Name" not in df.columns:
+    raise ValueError("❌ CSV must contain a column named 'Company Name'.")
 
-# Step 7: Save results to new CSV
-output_file = "companies_with_gstin.csv"
-df.to_csv(output_file, index=False)
+# ==========================================
+# STEP 6: Extract GSTINs and expand into multiple rows
+# ==========================================
+all_results = []
 
-# Step 8: Download the results
+for company in tqdm(df["Company Name"], desc="🔍 Searching GSTINs"):
+    results = find_gstin_with_context(company)
+    if results:
+        all_results.extend(results)
+    else:
+        all_results.append({
+            "Original Company": company,
+            "Matched Company": "",
+            "GSTIN": "",
+            "Source Link": ""
+        })
+
+# ==========================================
+# STEP 7: Save results to CSV and download
+# ==========================================
+output_df = pd.DataFrame(all_results)
+output_file = "companies_gstin_detailed.csv"
+output_df.to_csv(output_file, index=False)
+
 files.download(output_file)
-
-print("✅ Done! File 'companies_with_gstin.csv' is ready for download.")
+print("\n✅ Done! File 'companies_gstin_detailed.csv' is ready for download.")
