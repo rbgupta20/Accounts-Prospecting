@@ -28,7 +28,15 @@ d2 Run a code in Console of the page to get structure output in csv format (refe
                               - Inactive GSTINS
                      - Even after above more than 1 PANs is there against a company name, mention those PANs in the column, and Turnover etc.  (multiple entries.)  As Sales team works on those leads, they need to mark the right PAN when they come to know about it.         
                   )
-
+Excel formula:-
+=IF(
+  ISNUMBER(
+    SEARCH(
+      SUBSTITUTE(SUBSTITUTE(LOWER(A95)," ",""),".",""),
+      SUBSTITUTE(SUBSTITUTE(LOWER(B95)," ",""),".","")
+    )
+  ),
+"YES","NO")
 
 
 2. For a given Company Name: how to check Relevancy
