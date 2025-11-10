@@ -2,11 +2,18 @@
   a. Company Tab: Search for a keyword ex: "Cable Tray Manufacturer"
   b. Put other required filters: Location, Employee account etc
   c. Output: Companies with 10 results per page
-  d. Manually copy paste these details into Chatgpt and get structured output
+  
+d1. Manually copy paste these details into Chatgpt and get structured output
       - Company Name, Industry, Location, Followers, Summary/Key Products, Category
-  e. Use Company Name to get GSTINs from Google using Serp API or Pyautogui
+
+d2 Run a code in Console of the page to get structure output in csv format (refer code "Extracting structured data from Liknedin Page using Console"
+
+e. Use Company Name to get GSTINs from Google using Serp API or Pyautogui
   f. From GSTIN: get GSTIN enrichment thorugh Jamku (Pyautogui/Selenium)
   g. Check Relevancy using LLM API from field: "Summary/Key Products"
+
+
+
 
 
 2. For a given Company Name: how to check Relevancy
