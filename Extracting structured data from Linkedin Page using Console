@@ -1,0 +1,71 @@
+(async () => {
+  // Helper to clean text
+  const clean = t => t ? t.trim().replace(/\s+/g, ' ') : '';
+
+  // Auto scroll to bottom to load all results
+  let lastHeight = 0;
+  for (let i = 0; i < 15; i++) {
+    window.scrollTo(0, document.body.scrollHeight);
+    await new Promise(r => setTimeout(r, 1500));
+    const newHeight = document.body.scrollHeight;
+    if (newHeight === lastHeight) break;
+    lastHeight = newHeight;
+  }
+
+  const data = [];
+
+  // Try to capture all card-like containers
+  const cards = document.querySelectorAll('li, div');
+  cards.forEach(card => {
+    const html = card.innerText || '';
+    if (!html.match(/followers/i)) return; // skip irrelevant ones
+
+    // Company Name and Link
+    const nameAnchor = card.querySelector('a[href*="/company/"]');
+    const companyName = clean(nameAnchor ? nameAnchor.innerText : '');
+    const companyLink = nameAnchor ? nameAnchor.href.split('?')[0] : '';
+
+    // Followers
+    const followersMatch = html.match(/\d[\d.,]*\s*[KkMm]?\s*followers?/);
+    const followers = followersMatch ? followersMatch[0] : '';
+
+    // Industry + Location
+    const industryLocationMatch = html.split('\n').find(line => line.includes('•'));
+    let industry = '', location = '';
+    if (industryLocationMatch) {
+      const parts = industryLocationMatch.split('•').map(x => clean(x));
+      industry = parts[0] || '';
+      location = parts[1] || '';
+    }
+
+    // Snippet / About text
+    const snippetLine = html.split('\n').find(line =>
+      line.length > 50 && !line.includes('followers') && !line.includes('Follow')
+    );
+    const snippet = clean(snippetLine);
+
+    if (companyName) {
+      data.push({ companyName, companyLink, followers, industry, location, snippet });
+    }
+  });
+
+  console.table(data);
+
+  // Generate CSV
+  const csv = [
+    ['Company Name', 'Company Link', 'Followers', 'Industry', 'Location', 'Snippet'].join(','),
+    ...data.map(r =>
+      [`"${r.companyName}"`, `"${r.companyLink}"`, `"${r.followers}"`, `"${r.industry}"`, `"${r.location}"`, `"${r.snippet.replace(/"/g, "'")}"`].join(',')
+    )
+  ].join('\n');
+
+  // Download CSV
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), { href: url, download: 'linkedin_companies.csv' });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+
+  console.log(`✅ Extracted ${data.length} companies. CSV downloaded.`);
+})();
