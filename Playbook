@@ -12,8 +12,22 @@ d2 Run a code in Console of the page to get structure output in csv format (refe
   f. Use Company Name to get GSTINs from Google using Serp API or Pyautogui
   g. From GSTIN: get GSTIN enrichment thorugh Jamku (Pyautogui/Selenium)
 
-
-
+                  f & g detailed working for accuracy:-
+                  (*for all company name, ensure "pvt", "pvt." , ltd" & "ltd." are converted to "private" & "Limited"
+                   
+                  Let's first solve for accounts prospected through LinkedIn only:-
+                   
+                  for a given company, we have company location
+                     - Find GSTINs using Seper API.  Get all GSTINs against a company with Company name  & GSTIN in 2 columns. 
+                    - Select company name's GSTINs with exact match only
+                    - Count the unique PANs against a company name
+                              - Count GSTINs against each of the above PANs
+                    - For above GSTINs pull data from Jamku
+                   - For pulled data, 
+                              - filter out company names with no exact match
+                              - Inactive GSTINS
+                     - Even after above more than 1 PANs is there against a company name, mention those PANs in the column, and Turnover etc.  (multiple entries.)  As Sales team works on those leads, they need to mark the right PAN when they come to know about it.         
+                  )
 
 
 
