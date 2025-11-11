@@ -32,8 +32,8 @@ Excel formula:-
 =IF(
   ISNUMBER(
     SEARCH(
-      SUBSTITUTE(SUBSTITUTE(LOWER(A95)," ",""),".",""),
-      SUBSTITUTE(SUBSTITUTE(LOWER(B95)," ",""),".","")
+      SUBSTITUTE(SUBSTITUTE(LOWER(A2)," ",""),".",""),
+      SUBSTITUTE(SUBSTITUTE(LOWER(B2)," ",""),".","")
     )
   ),
 "YES","NO")
