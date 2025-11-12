@@ -1,0 +1,159 @@
+# ==========================================
+# STEP 1: Install dependencies
+# ==========================================
+!pip install requests beautifulsoup4 pandas lxml tldextract tqdm
+
+# ==========================================
+# STEP 2: Import libraries
+# ==========================================
+import requests
+from bs4 import BeautifulSoup
+import pandas as pd
+from urllib.parse import urljoin, urlparse, urlunparse
+import re
+import tldextract
+from tqdm import tqdm
+from google.colab import files
+from requests.exceptions import RequestException
+
+# ==========================================
+# STEP 3: Global headers
+# ==========================================
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+                  'AppleWebKit/537.36 (KHTML, like Gecko) '
+                  'Chrome/120.0 Safari/537.36'
+}
+
+# ==========================================
+# STEP 4: Helper - Extract visible text
+# ==========================================
+def extract_visible_text(html):
+    soup = BeautifulSoup(html, 'lxml')
+    for tag in soup(['script', 'style', 'noscript', 'header', 'footer', 'form', 'svg', 'nav']):
+        tag.decompose()
+    text = ' '.join(soup.stripped_strings)
+    return re.sub(r'\s+', ' ', text)
+
+# ==========================================
+# STEP 5: Helper - Normalize URLs
+# ==========================================
+def normalize_url(url):
+    parsed = urlparse(url)
+    return urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
+
+# ==========================================
+# STEP 6: Find likely Contact / About pages
+# ==========================================
+def find_contact_pages(base_url):
+    try:
+        res = requests.get(base_url, headers=HEADERS, timeout=10)
+        res.raise_for_status()
+        soup = BeautifulSoup(res.text, 'lxml')
+        links = soup.find_all('a', href=True)
+        candidates = []
+        for link in links:
+            href = link['href'].lower()
+            if any(kw in href for kw in ['contact', 'about', 'reach', 'support']):
+                full_link = urljoin(base_url, href)
+                candidates.append(normalize_url(full_link))
+        if candidates:
+            return list(set(candidates))
+    except RequestException:
+        pass
+    return []
+
+def extract_contacts_from_page(url):
+    phones, emails = set(), set()
+    try:
+        res = requests.get(url, headers=HEADERS, timeout=15)
+        res.raise_for_status()
+        soup = BeautifulSoup(res.text, 'html.parser')
+        text = extract_visible_text(res.text)
+
+        # ----- Extract from mailto and tel links -----
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            # Extract from mailto links
+            if 'mailto:' in href:
+                mail = href.split('mailto:')[-1].split('?')[0]
+                if re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', mail):
+                    emails.add(mail.strip())
+            # Extract from tel links
+            elif 'tel:' in href:
+                phone_candidate = href.split('tel:')[-1]
+                phone_candidate = re.sub(r'[^\d]', '', phone_candidate)
+                if len(phone_candidate) == 10 and phone_candidate[0] in '6789':
+                    phones.add(phone_candidate)
+
+        # ----- Extract from visible text -----
+        emails_found = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', text)
+        emails.update(emails_found)
+
+        raw_numbers = re.findall(
+            r'(?:\+91[\s\-]*)?(?:0)?([6-9][\d\-\s\.]{8,15}\d)', text
+        )
+        for num in raw_numbers:
+            digits = re.sub(r'\D', '', num)
+            if len(digits) == 10 and digits[0] in '6789':
+                phones.add(digits)
+
+    except RequestException:
+        pass
+
+    return list(phones), list(emails)
+
+
+
+# ==========================================
+# STEP 8: Main extraction function
+# ==========================================
+def extract_company_contacts():
+    print("📤 Please upload your CSV file (must contain a column named 'URL')")
+    uploaded = files.upload()
+    csv_file = list(uploaded.keys())[0]
+    df = pd.read_csv(csv_file)
+
+    results = []
+
+    for i, row in tqdm(df.iterrows(), total=len(df), desc="🔍 Extracting contact info"):
+        base_url = str(row['URL']).strip()
+        if not base_url:
+            continue
+        if not base_url.startswith(('http://', 'https://')):
+            base_url = 'https://' + base_url
+
+        print(f"\n➡️ Processing: {base_url}")
+        company_name = tldextract.extract(base_url).domain.capitalize()
+
+        all_phones, all_emails = set(), set()
+
+        # Step 1: Extract from homepage
+        phones, emails = extract_contacts_from_page(base_url)
+        all_phones.update(phones)
+        all_emails.update(emails)
+
+        # Step 2: Extract from contact/about pages
+        contact_pages = find_contact_pages(base_url)
+        for page in contact_pages:
+            phones, emails = extract_contacts_from_page(page)
+            all_phones.update(phones)
+            all_emails.update(emails)
+
+        results.append({
+            'Company Name': company_name,
+            'Website': base_url,
+            'Phone Numbers': ', '.join(sorted(all_phones)) if all_phones else '',
+            'Email Addresses': ', '.join(sorted(all_emails)) if all_emails else ''
+        })
+
+    out_df = pd.DataFrame(results)
+    out_df.to_csv('CompanyContacts.csv', index=False)
+    print("\n✅ Extraction complete! File saved as CompanyContacts.csv")
+
+    files.download('CompanyContacts.csv')
+
+# ==========================================
+# STEP 9: Run it
+# ==========================================
+extract_company_contacts()
