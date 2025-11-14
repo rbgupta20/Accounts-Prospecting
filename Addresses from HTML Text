@@ -1,0 +1,133 @@
+# =============================================
+# 📌 STEP 1 — Install dependencies
+# =============================================
+!pip install pandas requests tqdm
+
+import pandas as pd
+import requests
+from tqdm import tqdm
+from google.colab import files
+
+# =============================================
+# 📌 STEP 2 — Upload CSV File
+# =============================================
+print("📁 Please upload the CSV file containing extracted website text...")
+uploaded = files.upload()
+
+csv_filename = list(uploaded.keys())[0]
+df = pd.read_csv(csv_filename)
+
+print("\nColumns found:", df.columns.tolist())
+
+# 👉 Change column name here if needed
+TEXT_COLUMN = "Extracted Text"
+
+if TEXT_COLUMN not in df.columns:
+    raise ValueError(f"Column '{TEXT_COLUMN}' not found in the CSV!")
+
+
+# =============================================
+# 📌 STEP 3 — DeepSeek API Configuration
+# =============================================
+DEEPSEEK_API_KEY = "YOUR_API_KEY_HERE"       # <-- put API key here
+DEEPSEEK_URL = "https://api.deepseek.com/v1/chat/completions"
+
+headers = {
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
+}
+
+# =============================================
+# 📌 STEP 4 — Extract MULTIPLE ADDRESSES with LABELS
+# =============================================
+def extract_labeled_addresses(text):
+    """
+    Uses DeepSeek to extract multiple addresses WITH labels.
+    Output format from model will be JSON:
+    [
+      {"label": "Head Office", "address": "Plot 12, Industrial Area, Mumbai"},
+      {"label": "Plant", "address": "GIDC Phase 2, Vadodara"}
+    ]
+    """
+    prompt = f"""
+You are an AI that extracts ALL complete postal addresses from website content.
+For each address, also extract the MOST LIKELY label based on context such as:
+
+Head Office, Registered Office, Corporate Office, Branch Office,
+Sales Office, Factory, Plant, Works, Warehouse, HO, RO, Marketing Office, Depot etc.
+
+Return STRICTLY in JSON LIST format like this:
+
+[
+  {{"label": "Head Office", "address": "Plot 12, Industrial Area, Mumbai"}},
+  {{"label": "Plant", "address": "GIDC Phase 2, Ahmedabad"}},
+  {{"label": "Sales Office", "address": "MG Road, Delhi"}}
+]
+
+If no address is found, return: []
+Do NOT add extra text outside the JSON.
+
+TEXT:
+{text}
+"""
+
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0
+    }
+
+    try:
+        response = requests.post(DEEPSEEK_URL, headers=headers, json=payload, timeout=30)
+        raw = response.json()["choices"][0]["message"]["content"].strip()
+
+        try:
+            parsed = eval(raw)
+            if isinstance(parsed, list):
+                return parsed
+        except:
+            pass
+
+        return []
+    except Exception as e:
+        return [{"label": "API Error", "address": str(e)}]
+
+
+# =============================================
+# 📌 STEP 5 — Process and Extract
+# =============================================
+all_results = []
+
+print("\n🔍 Extracting labeled addresses using DeepSeek...\n")
+
+for text in tqdm(df[TEXT_COLUMN].fillna("").astype(str).tolist()):
+    extracted = extract_labeled_addresses(text)
+    all_results.append(extracted)
+
+df["Raw Address Data"] = all_results
+
+
+# =============================================
+# 📌 STEP 6 — Expand into Address 1, Address 2, ... (Label + Address)
+# =============================================
+max_count = max(len(r) for r in all_results)
+
+print(f"\n📌 Maximum labeled addresses found for any company: {max_count}\n")
+
+for i in range(max_count):
+    df[f"Address {i+1}"] = df["Raw Address Data"].apply(
+        lambda arr: f"{arr[i]['label']}: {arr[i]['address']}" if i < len(arr) else ""
+    )
+
+df.drop(columns=["Raw Address Data"], inplace=True)
+
+
+# =============================================
+# 📌 STEP 7 — Save Output CSV
+# =============================================
+output_filename = "company_labeled_addresses_output.csv"
+df.to_csv(output_filename, index=False)
+
+print(f"\n✅ DONE! Saved as: {output_filename}\n")
+
+files.download(output_filename)
