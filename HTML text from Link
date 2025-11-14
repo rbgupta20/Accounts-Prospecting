@@ -6,10 +6,10 @@
 # =============================
 # 📚 Import libraries
 # =============================
-import pandas as pd
-import requests
-from bs4 import BeautifulSoup
-from google.colab import files
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
+from google.colab import files
 
 # =============================
 # 📁 Step 1 – Upload CSV
@@ -22,13 +22,13 @@ df = pd.read_csv(file_name)
 
 # Detect link column automatically
 link_column = None
-for col in df.columns:
-    if "link" in col.lower() or "url" in col.lower():
-        link_column = col
-        break
+for col in df.columns:
+    if "link" in col.lower() or "url" in col.lower():
+        link_column = col
+        break
 
-if link_column is None:
-    raise ValueError("❌ No column with 'link' or 'url' found.")
+if link_column is None:
+    raise ValueError("❌ No column with 'link' or 'url' found.")
 
 print(f"🔗 Using column: {link_column}")
 
@@ -36,37 +36,40 @@ print(f"🔗 Using column: {link_column}")
 # 🌐 Step 2 – Extract text using BeautifulSoup
 # =============================
 def extract_text(url):
-    try:
-        response = requests.get(url, timeout=10, headers={
-            "User-Agent": "Mozilla/5.0"
-        })
-        if response.status_code != 200:
-            return f"Error: HTTP {response.status_code}"
+    try:
+        response = requests.get(
+            url,
+            timeout=10,
+            headers={"User-Agent": "Mozilla/5.0"}
+        )
+        if response.status_code != 200:
+            return f"Error: HTTP {response.status_code}"
 
-        soup = BeautifulSoup(response.text, "lxml")
+        soup = BeautifulSoup(response.text, "lxml")
 
-        # Extract visible text
-        for script in soup(["script", "style", "noscript"]):
-            script.extract()
+        # Remove scripts, styles, etc.
+        for script in soup(["script", "style", "noscript"]):
+            script.extract()
 
-        text = soup.get_text(separator=" ", strip=True)
-        return text
+        # Extract visible text
+        text = soup.get_text(separator=" ", strip=True)
+        return text
 
-    except Exception as e:
-        return f"Error: {e}"
+    except Exception as e:
+        return f"Error: {e}"
 
 # =============================
 # 🔄 Step 3 – Process all links
 # =============================
 results = []
 
-for url in df[link_column]:
-    print("➡ Extracting:", url)
-    text = extract_text(url)
-    results.append({
-        "Company Link": url,
-        "Extracted Raw Text": text
-    })
+for url in df[link_column]:
+    print("➡ Extracting:", url)
+    text = extract_text(url)
+    results.append({
+        "Company Link": url,
+        "Extracted Raw Text": text
+    })
 
 # =============================
 # 💾 Step 4 – Save Output CSV
