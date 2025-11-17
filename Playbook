@@ -20,6 +20,7 @@ d2 Run a code in Console of the page to get structure output in csv format (refe
                   for a given company, we have company location
                      - Find GSTINs using Seper API.  Get all GSTINs against a company with Company name  & GSTIN in 2 columns. 
                     - Select company name's GSTINs with exact match only
+                    - now remove the duplicates
                     - Count the unique PANs against a company name
                               - Count GSTINs against each of the above PANs
                     - For above GSTINs pull data from Jamku
