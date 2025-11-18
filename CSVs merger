@@ -1,0 +1,25 @@
+import pandas as pd
+from google.colab import files
+
+print("📁 Please upload your CSV files (you can select multiple)...")
+uploaded = files.upload()
+
+dfs = []
+
+for file_name in uploaded.keys():
+    print(f"📥 Reading: {file_name}")
+    df = pd.read_csv(file_name)
+    dfs.append(df)
+
+merged_df = pd.concat(dfs, ignore_index=True)
+
+print("\n✅ Successfully merged all CSV files!")
+print(f"Total rows after merge: {len(merged_df)}")
+
+output_filename = "merged_output.csv"
+merged_df.to_csv(output_filename, index=False)
+
+print(f"\n📄 Merged CSV created: {output_filename}")
+
+# 🔻 Auto-download
+files.download(output_filename)
