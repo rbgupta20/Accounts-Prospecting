@@ -1,0 +1,100 @@
+# =============================
+# 📦 Install Dependencies
+# =============================
+!pip install pandas requests tqdm
+
+import pandas as pd
+import requests
+from tqdm import tqdm
+from google.colab import files
+
+# =============================
+# 🔑 Step 1 – Enter API Key
+# =============================
+rapid_api_key = input("Enter your RapidAPI Key: ").strip()
+
+# =============================
+# 📁 Step 2 – Upload CSV File
+# =============================
+print("📁 Upload CSV containing a column 'gstin'")
+uploaded = files.upload()
+
+file_name = list(uploaded.keys())[0]
+df = pd.read_csv(file_name)
+
+if 'gstin' not in df.columns:
+    raise Exception("CSV must contain a column named 'gstin'")
+
+# =============================
+# 🌐 Step 3 – Function to Fetch GSTIN Data
+# =============================
+def fetch_gstin_info(gstin):
+    url = f"https://gst-return-status.p.rapidapi.com/free/gstin/{gstin}"
+
+    headers = {
+        "content-type": "application/json",
+        "x-rapidapi-key": rapid_api_key,
+        "x-rapidapi-host": "gst-return-status.p.rapidapi.com"
+    }
+
+    try:
+        res = requests.get(url, headers=headers, timeout=15)
+        
+        if res.status_code != 200:
+            return {"gstin": gstin, "error": f"HTTP {res.status_code}"}
+        
+        data = res.json()
+
+        if not data.get("success"):
+            return {"gstin": gstin, "error": "API returned success=False"}
+        
+        d = data.get("data", {})
+
+        return {
+            "gstin": d.get("gstin"),
+            "legal_name": d.get("lgnm"),
+            "trade_name": d.get("tradeName"),
+            "pan": d.get("pan"),
+            "status": d.get("sts"),
+            "registration_type": d.get("dty"),
+            "registration_date": d.get("rgdt"),
+            "cancel_date": d.get("cxdt"),
+            "address": d.get("adr"),
+            "business_type": d.get("ctb"),
+            "compliance_category": d.get("compCategory"),
+
+            # 👇👇 NEW FIELDS ADDED
+            "turnover_slab": d.get("aggreTurnOver"),
+            "aggreTurnOverFY": d.get("aggreTurnOverFY"),
+
+            "mandated_einvoice": d.get("mandatedeInvoice"),
+            "filing_frequency": str(d.get("fillingFreq")),
+            "latest_return_period": d.get("meta", {}).get("latestgtsr1"),
+            "hsn_codes": ",".join(d.get("hsn", [])) if d.get("hsn") else "",
+            "nature_of_business": ",".join(d.get("nba", [])) if d.get("nba") else "",
+            "error": ""
+        }
+
+    except Exception as e:
+        return {"gstin": gstin, "error": str(e)}
+
+# =============================
+# 🚀 Step 4 – Loop & Fetch GSTIN Details
+# =============================
+results = []
+
+for gstin in tqdm(df['gstin'], desc="Fetching GSTIN details"):
+    info = fetch_gstin_info(str(gstin).strip())
+    results.append(info)
+
+output_df = pd.DataFrame(results)
+
+# =============================
+# 💾 Step 5 – Save & Auto Download CSV
+# =============================
+output_filename = "gstin_output.csv"
+output_df.to_csv(output_filename, index=False)
+
+files.download(output_filename)
+
+print("✅ Done! Downloading gstin_output.csv")
