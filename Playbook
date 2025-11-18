@@ -7,7 +7,9 @@ d1. Manually copy paste these details into Chatgpt and get structured output
       - Company Name, Industry, Location, Followers, Summary/Key Products, Category
 
 d2 Run a code in Console of the page to get structure output in csv format (refer code "Extracting structured data from Liknedin Page using Console"
-
+e. Use BrightData to get details from Linkedin Company Profile Link.(go to Data -> Scrapers Library)
+(1.5 USD for 1000 Linkedin links)
+  
   e. Check Relevancy using LLM API from field: "Summary/Key Products"
   f. Use Company Name to get GSTINs from Google using Serp API or Pyautogui
   g. From GSTIN: get GSTIN enrichment thorugh Jamku (Pyautogui/Selenium)
