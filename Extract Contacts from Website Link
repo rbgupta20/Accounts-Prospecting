@@ -26,7 +26,7 @@ HEADERS = {
 }
 
 # ==========================================
-# STEP 4: Helper - Extract visible text
+# STEP 4: Extract visible text
 # ==========================================
 def extract_visible_text(html):
     soup = BeautifulSoup(html, 'lxml')
@@ -36,63 +36,74 @@ def extract_visible_text(html):
     return re.sub(r'\s+', ' ', text)
 
 # ==========================================
-# STEP 5: Helper - Normalize URLs
+# STEP 5: Normalize URL
 # ==========================================
 def normalize_url(url):
     parsed = urlparse(url)
     return urlunparse((parsed.scheme, parsed.netloc, parsed.path, '', '', ''))
 
 # ==========================================
-# STEP 6: Find likely Contact / About pages
+# STEP 6: Find contact/about/support pages
 # ==========================================
 def find_contact_pages(base_url):
     try:
         res = requests.get(base_url, headers=HEADERS, timeout=10)
         res.raise_for_status()
         soup = BeautifulSoup(res.text, 'lxml')
+
         links = soup.find_all('a', href=True)
         candidates = []
+
         for link in links:
             href = link['href'].lower()
-            if any(kw in href for kw in ['contact', 'about', 'reach', 'support']):
+            if any(kw in href for kw in ['contact', 'about', 'reach', 'support', 'help']):
                 full_link = urljoin(base_url, href)
                 candidates.append(normalize_url(full_link))
+
         if candidates:
             return list(set(candidates))
+
     except RequestException:
         pass
+
     return []
 
+# ==========================================
+# STEP 7: Extract contacts from a single page
+# ==========================================
 def extract_contacts_from_page(url):
     phones, emails = set(), set()
+
     try:
-        res = requests.get(url, headers=HEADERS, timeout=15)
+        res = requests.get(url, headers=HEADERS, timeout=12)
         res.raise_for_status()
+
         soup = BeautifulSoup(res.text, 'html.parser')
         text = extract_visible_text(res.text)
 
-        # ----- Extract from mailto and tel links -----
+        # Extract from mailto: and tel:
         for a in soup.find_all('a', href=True):
             href = a['href']
-            # Extract from mailto links
-            if 'mailto:' in href:
-                mail = href.split('mailto:')[-1].split('?')[0]
-                if re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', mail):
-                    emails.add(mail.strip())
-            # Extract from tel links
-            elif 'tel:' in href:
-                phone_candidate = href.split('tel:')[-1]
-                phone_candidate = re.sub(r'[^\d]', '', phone_candidate)
-                if len(phone_candidate) == 10 and phone_candidate[0] in '6789':
-                    phones.add(phone_candidate)
 
-        # ----- Extract from visible text -----
+            # Mail extraction
+            if 'mailto:' in href:
+                mail = href.split('mailto:')[-1].split('?')[0].strip()
+                if re.match(r'^[\w\.-]+@[\w\.-]+\.\w+$', mail):
+                    emails.add(mail)
+
+            # Phone extraction
+            if 'tel:' in href:
+                phone = href.split('tel:')[-1]
+                phone = re.sub(r'\D', '', phone)
+                if len(phone) == 10 and phone[0] in '6789':
+                    phones.add(phone)
+
+        # Extract emails from visible text
         emails_found = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', text)
         emails.update(emails_found)
 
-        raw_numbers = re.findall(
-            r'(?:\+91[\s\-]*)?(?:0)?([6-9][\d\-\s\.]{8,15}\d)', text
-        )
+        # Extract phone numbers from visible text
+        raw_numbers = re.findall(r'(?:\+91[\s\-]*)?(?:0)?([6-9][\d\-\s\.]{8,15}\d)', text)
         for num in raw_numbers:
             digits = re.sub(r'\D', '', num)
             if len(digits) == 10 and digits[0] in '6789':
@@ -102,8 +113,6 @@ def extract_contacts_from_page(url):
         pass
 
     return list(phones), list(emails)
-
-
 
 # ==========================================
 # STEP 8: Main extraction function
@@ -120,23 +129,25 @@ def extract_company_contacts():
         base_url = str(row['URL']).strip()
         if not base_url:
             continue
+
         if not base_url.startswith(('http://', 'https://')):
             base_url = 'https://' + base_url
 
         print(f"\n➡️ Processing: {base_url}")
+
         company_name = tldextract.extract(base_url).domain.capitalize()
 
         all_phones, all_emails = set(), set()
 
-        # Step 1: Extract from homepage
+        # 1. Extract from homepage
         phones, emails = extract_contacts_from_page(base_url)
         all_phones.update(phones)
         all_emails.update(emails)
 
-        # Step 2: Extract from contact/about pages
-        contact_pages = find_contact_pages(base_url)
-        for page in contact_pages:
-            phones, emails = extract_contacts_from_page(page)
+        # 2. Extract from contact/about pages
+        pages = find_contact_pages(base_url)
+        for p in pages:
+            phones, emails = extract_contacts_from_page(p)
             all_phones.update(phones)
             all_emails.update(emails)
 
@@ -148,12 +159,12 @@ def extract_company_contacts():
         })
 
     out_df = pd.DataFrame(results)
-    out_df.to_csv('CompanyContacts.csv', index=False)
-    print("\n✅ Extraction complete! File saved as CompanyContacts.csv")
+    out_df.to_csv("CompanyContacts.csv", index=False)
 
-    files.download('CompanyContacts.csv')
+    print("\n✅ Extraction complete! File saved as CompanyContacts.csv")
+    files.download("CompanyContacts.csv")
 
 # ==========================================
-# STEP 9: Run it
+# STEP 9: Run Script
 # ==========================================
 extract_company_contacts()
