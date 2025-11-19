@@ -31,9 +31,14 @@ e. Use BrightData to get details from Linkedin Company Profile Link.(go to Data 
                      - Even after above more than 1 PANs is there against a company name, mention those PANs in the column, and Turnover etc.  (multiple entries.)  As Sales team works on those leads, they need to mark the right PAN when they come to know about it.         
                   )
 Excel formula:-
+Check Formula
 =IF(ISNUMBER(SEARCH(B2, K2)), "YES", "NO")
-Cleaning/Standardising companies
+
+Cleaning/Standardising companies 2
 =SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LOWER(A2),"&","and"),"pvt.","private"),"pvt","private"),"ltd.","limited"),"ltd","limited"),".",""),"-",""),"(",""),")","")," ","")
+
+Cleaning 1
+=TRIM(IF(RIGHT(A2,1)=")", LEFT(A2, FIND("(", A2, LEN(A2)-LEN(SUBSTITUTE(A2,"(",""))) -1), A2))
 
 
 2. For a given Company Name: how to check Relevancy
