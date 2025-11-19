@@ -1,7 +1,7 @@
 # =============================
 # 📦 Install dependencies
 # =============================
-!pip install pandas beautifulsoup4 requests lxml
+!pip install pandas beautifulsoup4 requests lxml fake-useragent
 
 # =============================
 # 📚 Import libraries
@@ -10,6 +10,81 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from google.colab import files
+from fake_useragent import UserAgent
+import time
+import random
+
+# =============================
+# 🌐 Utility: Smart Request Handler
+# =============================
+ua = UserAgent()
+
+def smart_get(url, retries=3):
+    for attempt in range(retries):
+        try:
+            headers = {
+                "User-Agent": ua.random,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Connection": "keep-alive",
+            }
+
+            response = requests.get(
+                url,
+                timeout=12,
+                headers=headers,
+                allow_redirects=True,
+                verify=False  # bypass SSL handshake failures
+            )
+
+            # If good response
+            if response.status_code == 200:
+                return response.text
+
+            # If 403/406/429 → wait & retry with new header
+            if response.status_code in [403, 406, 429, 500, 502]:
+                time.sleep(2 + attempt)
+                continue
+
+            # Otherwise return error
+            return f"Error: HTTP {response.status_code}"
+
+        except Exception as e:
+            # try HTTP instead of HTTPS once
+            if url.startswith("https://"):
+                try_url = "http://" + url.replace("https://", "")
+                url = try_url
+                continue
+
+            if attempt == retries - 1:
+                return f"Error: {e}"
+
+            time.sleep(1)
+
+    return "Error: Max retries failed"
+
+
+# =============================
+# 🌐 Extract Text from HTML
+# =============================
+def extract_text(url):
+    html = smart_get(url)
+    if html is None or str(html).startswith("Error"):
+        return html
+
+    try:
+        soup = BeautifulSoup(html, "lxml")
+
+        # Remove scripts/styles
+        for tag in soup(["script", "style", "noscript"]):
+            tag.decompose()
+
+        text = soup.get_text(" ", strip=True)
+        return text
+
+    except Exception as e:
+        return f"Error parsing HTML: {e}"
+
 
 # =============================
 # 📁 Step 1 – Upload CSV
@@ -20,7 +95,7 @@ uploaded = files.upload()
 file_name = next(iter(uploaded))
 df = pd.read_csv(file_name)
 
-# Detect link column automatically
+# Auto-detect link column
 link_column = None
 for col in df.columns:
     if "link" in col.lower() or "url" in col.lower():
@@ -31,32 +106,6 @@ if link_column is None:
     raise ValueError("❌ No column with 'link' or 'url' found.")
 
 print(f"🔗 Using column: {link_column}")
-
-# =============================
-# 🌐 Step 2 – Extract text using BeautifulSoup
-# =============================
-def extract_text(url):
-    try:
-        response = requests.get(
-            url,
-            timeout=10,
-            headers={"User-Agent": "Mozilla/5.0"}
-        )
-        if response.status_code != 200:
-            return f"Error: HTTP {response.status_code}"
-
-        soup = BeautifulSoup(response.text, "lxml")
-
-        # Remove scripts, styles, etc.
-        for script in soup(["script", "style", "noscript"]):
-            script.extract()
-
-        # Extract visible text
-        text = soup.get_text(separator=" ", strip=True)
-        return text
-
-    except Exception as e:
-        return f"Error: {e}"
 
 # =============================
 # 🔄 Step 3 – Process all links
