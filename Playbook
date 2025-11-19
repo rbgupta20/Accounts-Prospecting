@@ -17,7 +17,6 @@ e. Use BrightData to get details from Linkedin Company Profile Link.(go to Data 
                   f & g detailed working for accuracy:-
                   (*for all company name, ensure "pvt", "pvt." , ltd" & "ltd." are converted to "private" & "Limited"
                    
-                  Let's first solve for accounts prospected through LinkedIn only:-
                    
                   for a given company, we have company location
                      - Find GSTINs using Seper API.  Get all GSTINs against a company with Company name  & GSTIN in 2 columns. 
@@ -32,14 +31,9 @@ e. Use BrightData to get details from Linkedin Company Profile Link.(go to Data 
                      - Even after above more than 1 PANs is there against a company name, mention those PANs in the column, and Turnover etc.  (multiple entries.)  As Sales team works on those leads, they need to mark the right PAN when they come to know about it.         
                   )
 Excel formula:-
-=IF(
-  ISNUMBER(
-    SEARCH(
-      SUBSTITUTE(SUBSTITUTE(LOWER(A2)," ",""),".",""),
-      SUBSTITUTE(SUBSTITUTE(LOWER(B2)," ",""),".","")
-    )
-  ),
-"YES","NO")
+=IF(ISNUMBER(SEARCH(B2, K2)), "YES", "NO")
+Cleaning/Standardising companies
+=SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(SUBSTITUTE(LOWER(A2),"&","and"),"pvt.","private"),"pvt","private"),"ltd.","limited"),"ltd","limited"),".",""),"-",""),"(",""),")","")," ","")
 
 
 2. For a given Company Name: how to check Relevancy
