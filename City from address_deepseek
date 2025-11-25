@@ -1,0 +1,91 @@
+# ============================================================
+# 🏙️ Extract Indian City From Address Using DeepSeek API
+# ============================================================
+
+!pip install pandas requests tqdm
+
+import pandas as pd
+import requests
+from tqdm import tqdm
+from google.colab import files
+
+# ============================================================
+# 🔑 Step 1 — Ask API Key
+# ============================================================
+
+deepseek_api_key = input("Enter your DeepSeek API Key: ").strip()
+
+# ============================================================
+# 📁 Step 2 — Upload CSV
+# ============================================================
+
+print("Upload your CSV containing addresses...")
+uploaded = files.upload()
+
+file_name = list(uploaded.keys())[0]
+df = pd.read_csv(file_name)
+
+# Expecting a column named "Address"
+if "Address" not in df.columns:
+    raise ValueError("Your CSV must contain a column named 'Address'")
+
+# ============================================================
+# 🤖 Step 3 — DeepSeek API Function
+# ============================================================
+
+def extract_city_from_address(address):
+    """
+    Sends a prompt to DeepSeek API asking to return ONLY the Indian city.
+    If city cannot be found, return 'Unknown'
+    """
+    url = "https://api.deepseek.com/chat/completions"
+
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [
+            {
+                "role": "user",
+                "content": f"Extract only the **city name** from this Indian address:\n\n{address}\n\nReturn only the city. If not found, return 'Unknown'."
+            }
+        ]
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {deepseek_api_key}"
+    }
+
+    try:
+        response = requests.post(url, json=payload, headers=headers)
+        response_json = response.json()
+
+        city = response_json["choices"][0]["message"]["content"].strip()
+        return city
+
+    except Exception as e:
+        return "Error"
+
+
+# ============================================================
+# 🏃 Step 4 — Process All Rows
+# ============================================================
+
+cities = []
+
+for address in tqdm(df["Address"], desc="Processing addresses"):
+    city = extract_city_from_address(address)
+    cities.append(city)
+
+df["City"] = cities
+
+# ============================================================
+# 💾 Step 5 — Save Final Output CSV
+# ============================================================
+
+output_file = "output_with_city.csv"
+df.to_csv(output_file, index=False)
+
+print(f"\n✅ DONE! File saved as: {output_file}")
+
+# Auto-download
+files.download(output_file)
