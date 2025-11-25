@@ -1,0 +1,118 @@
+# ============================================
+# 📦 Install Packages
+# ============================================
+!pip install pandas requests python-dotenv
+
+import pandas as pd
+import requests
+from google.colab import files
+import getpass
+
+
+# ============================================
+# 📁 Step 1 — Upload CSV
+# ============================================
+print("📌 Upload CSV containing: Company Name, Company_About Us")
+uploaded = files.upload()
+
+csv_file = list(uploaded.keys())[0]
+df = pd.read_csv(csv_file)
+
+print("\n✅ CSV Loaded. Sample:")
+print(df.head())
+
+
+# ============================================
+# 🔑 Step 2 — DeepSeek API Key
+# ============================================
+DEEPSEEK_API_KEY = getpass.getpass("🔐 Enter your DeepSeek API Key: ")
+
+
+# ============================================
+# 🤖 Step 3 — DeepSeek API Call Function
+# ============================================
+def classify_peb(company_name, about_text):
+
+    endpoint = "https://api.deepseek.com/v1/chat/completions"
+
+    prompt = f"""
+You are an expert in analyzing company profiles.
+
+Determine whether this company is involved in **PEB (Pre-Engineered Buildings)**.
+
+Respond *strictly* in JSON ONLY:
+{{
+  "PEB": "YES or NO",
+  "Reason": "very short one-line reason"
+}}
+
+Company Name: {company_name}
+
+About Us:
+{about_text}
+"""
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {DEEPSEEK_API_KEY}"
+    }
+
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0
+    }
+
+    try:
+        response = requests.post(endpoint, headers=headers, json=payload)
+        response.raise_for_status()
+        result = response.json()
+        content = result["choices"][0]["message"]["content"]
+
+        # Parse JSON safely
+        import json
+        data = json.loads(content)
+
+        return data["PEB"], data["Reason"]
+
+    except Exception as e:
+        print(f"❌ Error for {company_name}: {e}")
+        return "ERROR", "Could not classify"
+
+
+# ============================================
+# 🚀 Step 4 — Process All Rows With Progress
+# ============================================
+total = len(df)
+peb_results = []
+peb_reasons = []
+
+print("\n🔍 Checking PEB involvement...\n")
+
+for idx, row in df.iterrows():
+    print(f"Processing row {idx+1} of {total} ...")
+
+    yesno, reason = classify_peb(
+        row["Company Name"],
+        row["Company_About Us"]
+    )
+
+    peb_results.append(yesno)
+    peb_reasons.append(reason)
+
+
+df["PEB_Yes_No"] = peb_results
+df["PEB_Reason"] = peb_reasons
+
+
+# ============================================
+# 💾 Step 5 — Export Output CSV
+# ============================================
+output_file = "PEB_Classification_Output.csv"
+df.to_csv(output_file, index=False)
+
+print("\n✅ Processing complete!")
+print(df[["PEB_Yes_No", "PEB_Reason"]].head())
+
+print(f"\n📥 Download your result: {output_file}")
+files.download(output_file)
