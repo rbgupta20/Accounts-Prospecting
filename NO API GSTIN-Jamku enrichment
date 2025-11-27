@@ -1,0 +1,161 @@
+# ======================================================
+# INSTALL CHROME + SELENIUM
+# ======================================================
+!apt-get update
+!wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+!apt install -y ./google-chrome-stable_current_amd64.deb
+
+!pip install selenium webdriver-manager pandas
+
+# ======================================================
+# IMPORTS
+# ======================================================
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+from google.colab import files
+import pandas as pd
+import time
+import random
+
+# ======================================================
+# SETUP CHROME FOR COLAB
+# ======================================================
+chrome_options = Options()
+chrome_options.add_argument("--headless=new")
+chrome_options.add_argument("--disable-gpu")
+chrome_options.add_argument("--window-size=1920,1080")
+chrome_options.add_argument("--no-sandbox")
+chrome_options.add_argument("--disable-dev-shm-usage")
+
+web = webdriver.Chrome(
+    service=Service(ChromeDriverManager().install()),
+    options=chrome_options
+)
+
+# ======================================================
+# LOAD INITIAL PAGE
+# ======================================================
+web.get("https://gst.jamku.app/gstin/08AAACZ4832E1ZD")
+time.sleep(4)
+
+# ======================================================
+# UPLOAD CSV FILE (NO GOOGLE DRIVE)
+# ======================================================
+uploaded = files.upload()
+file_name = list(uploaded.keys())[0]
+df = pd.read_csv(file_name)
+
+# ======================================================
+# FINAL CSV STRUCTURE
+# ======================================================
+columns_order = [
+    'GSTIN Number',
+    'Trade Name', 'Legal Name', 'Registration Status', 'Registration Date',
+    'Entity Type', 'Place of Business (Address)', 'E-Invoice mandatory?',
+    'Aggregate Turnover', 'Central Jurisdiction', 'State Jurisdiction'
+]
+
+new_df = pd.DataFrame(columns=columns_order)
+
+# ======================================================
+# CLEAN + ADD ROW FUNCTION
+# ======================================================
+def cleand_gstin_add_row(df, raw_list, gstin_number):
+
+    row_data = {}
+
+    for item in raw_list:
+        if "\n" in item:
+            key, value = item.split("\n", 1)
+            key = key.strip()
+            value = value.strip()
+
+            if key in columns_order:
+                row_data[key] = value
+
+    # Fill missing keys
+    for col in columns_order:
+        if col not in row_data:
+            row_data[col] = ""
+
+    df.loc[len(df)] = [gstin_number] + [
+        row_data.get(col, "") for col in columns_order[1:]
+    ]
+
+    df.to_csv("gst_data.csv", index=False)
+    return df
+
+
+# ======================================================
+# MAIN LOOP — SCRAPE EACH GSTIN
+# ======================================================
+for i, gstin_number in enumerate(df.iloc[:, 0]):
+
+    print(f"\n🔍 Searching GSTIN: {gstin_number}")
+
+    # Search GSTIN
+    try:
+        search_box = WebDriverWait(web, 10).until(
+            EC.presence_of_element_located((By.ID, "gstnosearch"))
+        )
+        search_box.clear()
+        search_box.send_keys(gstin_number)
+
+        search_btn = web.find_element(By.XPATH,
+            '//*[@id="__nuxt"]/div/div[2]/div/div/main/div[2]/div[2]/div/div/button'
+        )
+        search_btn.click()
+
+    except Exception as e:
+        print(f"❌ Error searching GSTIN: {gstin_number}")
+        continue
+
+    time.sleep(random.uniform(3, 5))
+
+    # Click turnover button if available
+    try:
+        turnover_btn = web.find_element(
+            By.CSS_SELECTOR,
+            'button.border.rounded.bg-gray-300.border-blue-300.p-2'
+        )
+        turnover_btn.click()
+        time.sleep(2)
+    except:
+        pass
+
+    # Extract business details
+    business_details = []
+    try:
+        parent_div = web.find_element(By.XPATH,
+            '//*[@id="__nuxt"]/div/div[2]/div/div/main/div[1]/section[1]/div[2]'
+        )
+        child_divs = parent_div.find_elements(By.TAG_NAME, "div")
+
+        for div in child_divs:
+            text = div.text.strip()
+            if text:
+                business_details.append(text)
+
+    except:
+        print(f"⚠ Warning: Missing details for {gstin_number}")
+        continue
+
+    # Add record to DF
+    new_df = cleand_gstin_add_row(new_df, business_details, gstin_number)
+
+    print(f"✅ Added → {gstin_number} ({i+1}/{len(df)})")
+
+
+# ======================================================
+# DONE → DOWNLOAD OUTPUT CSV
+# ======================================================
+web.quit()
+print("\n📁 Downloading gst_data.csv ...")
+files.download("gst_data.csv")
