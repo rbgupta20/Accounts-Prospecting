@@ -1,0 +1,108 @@
+import pandas as pd
+import requests
+from google.colab import files
+import json
+
+# ===========================
+# 1. UPLOAD CSV
+# ===========================
+
+print("📁 Please upload your CSV file having 'Company Name' and 'Company Profile' columns")
+uploaded = files.upload()
+
+filename = list(uploaded.keys())[0]
+df = pd.read_csv(filename)
+
+print(f"✔️ Loaded file: {filename}")
+print(df.head())
+
+# ensure required columns exist
+required_cols = ["Company Name", "Company Profile"]
+for col in required_cols:
+    if col not in df.columns:
+        raise Exception(f"❌ Missing required column: {col}")
+
+# ===========================
+# 2. ASK FOR DEEPSEEK API KEY
+# ===========================
+
+deepseek_api_key = input("🔑 Enter DeepSeek API Key: ").strip()
+
+if not deepseek_api_key:
+    raise Exception("❌ API key required!")
+
+# ===========================
+# 3. FUNCTION TO CALL DEEPSEEK
+# ===========================
+
+def categorize_company(name, profile):
+
+    prompt = f"""
+You are a classifier. Categorize the company based on the description.
+
+Company Name: {name}
+Company Profile: {profile}
+
+Classify into one category only:
+1. EPC Company
+2. Fabricator
+3. Manufacturer
+
+Return ONLY the category word.
+Example output: EPC or Fabricator or Manufacturer.
+"""
+
+    url = "https://api.deepseek.com/chat/completions"
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {deepseek_api_key}"
+    }
+
+    data = {
+        "model": "deepseek-chat",
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0
+    }
+
+    try:
+        r = requests.post(url, headers=headers, data=json.dumps(data))
+        r.raise_for_status()
+
+        res = r.json()['choices'][0]['message']['content'].strip()
+        return res
+
+    except Exception as e:
+        print("Error:", e)
+        return "ERROR"
+
+
+# ===========================
+# 4. RUN CLASSIFICATION
+# ===========================
+
+results = []
+
+print("\n🚀 Processing rows...\n")
+
+for idx, row in df.iterrows():
+    name = row["Company Name"]
+    profile = row["Company Profile"]
+
+    category = categorize_company(name, profile)
+    print(f"{idx+1}. {name} → {category}")
+
+    results.append(category)
+
+df["Category"] = results
+
+# ===========================
+# 5. SAVE OUTPUT CSV
+# ===========================
+
+output_file = "categorized_companies.csv"
+df.to_csv(output_file, index=False)
+
+print("\n✔️ Saved results to:", output_file)
+
+files.download(output_file)
