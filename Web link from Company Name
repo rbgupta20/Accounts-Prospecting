@@ -1,0 +1,79 @@
+!pip install ddgs
+from IPython.display import clear_output
+import pandas as pd
+import csv , os , re , time , random
+from ddgs import DDGS
+from google.colab import files
+ 
+time.sleep(2)
+clear_output(wait=True)
+ 
+# Upload CSV File and load data base -------------------------------------------
+uploaded = files.upload()
+file_name = list(uploaded.keys())[0]
+ 
+df = pd.read_csv(file_name)
+ 
+# Main section to extract url from website search and store into database-----------------------------
+for idx, trade_name in enumerate(df.iloc[:, 0]):
+ 
+    trade_name = trade_name.lower()
+    search_word = "company website"
+    qry = f'{trade_name} {search_word}'
+ 
+    keywords = [
+        "linkedin", "masterdata", "mcacompanysearch", "companyhouse", "dnb",
+        "zaubacorp", "report", "hubitat", "onefivenine", "sconinfrastructure",
+        "falconebiz", "companydetails", "digitalphablet", "knowtechie", "nerdtechy",
+        "maketecheasier", "magicfactory", "manus", "bestbuy", "soccerbible", "aliexpress",
+        "removal", "bookmyshow", "infrajob", "crunchbase", "tradego", "datanyze", "alibaba"
+    ]
+ 
+ 
+    tlds = (
+        "com|in|co\\.in|org|net|co|biz|info|io|gov|edu|"
+        "ac\\.in|edu\\.in|org\\.in|net\\.in|firm\\.in|gen\\.in|ind\\.in|"
+        "nic\\.in|gov\\.in|mil\\.in|res\\.in|me|us|uk|ca|au|sg|"
+        "co\\.uk|co\\.us|co\\.nz|ai|app|cloud|store|shop|tech|dev"
+    )
+ 
+    pattern = rf'^https?://[^/]+\.({tlds})/?$'
+ 
+    gov_tlds = "gov|nic|mil|res"
+ 
+    keywords = [k.lower() for k in keywords]
+ 
+    unique_website_url = []
+ 
+    for _ in range(4): # looping four time to capture maximum data and will filter later from them
+        with DDGS() as ddgs:
+            results = ddgs.text(qry, max_results=20)
+           
+ 
+        # Capture data in key and value pairs from dict data
+        for item in results:
+            href = item['href'].lower()
+           
+            # Filter value and extract only company url
+            if all(k not in href for k in keywords):
+                if re.match(pattern, href.strip(), flags=re.I):
+                    if not re.search(rf'\b({gov_tlds})\b', href, flags=re.I):
+                        if len(href) <= len(trade_name) + 36: # 12 for https://www. | 4 for .com | 20 for additional
+                            if href.lower() not in unique_website_url:
+                                unique_website_url.append(href.lower())
+ 
+    # Store all url in columns for CSV file
+    for j, url in enumerate(unique_website_url):
+        df.at[idx, f'website_{j+1}'] = url
+ 
+    # Save CSV
+    df.to_csv('website_url_link_data.csv', index=False)
+ 
+    clear_output(wait=True)
+ 
+    print(f'✅ {idx + 1} Data Successfully added in CSV file for Company Name -- {trade_name}')
+   
+    print(unique_website_url)
+ 
+files.download('website_url_link_data.csv')
+ 
