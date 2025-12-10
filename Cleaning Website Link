@@ -1,0 +1,120 @@
+# -------------------------------------------------------------
+# STEP 1: Install dependencies
+# -------------------------------------------------------------
+!pip install pandas python-dotenv requests
+ 
+import pandas as pd
+import requests
+from google.colab import files
+ 
+# -------------------------------------------------------------
+# STEP 2: Ask user for API key
+# -------------------------------------------------------------
+ASK_API_KEY = input("Enter your Ask API Key: ").strip()
+ 
+def ask_api_best_website(company_name):
+    """
+    Uses Ask API / DeepSeek to get best official website
+    """
+    try:
+        url = "https://api.ask.com/v1/query"   # <-- your actual Ask API endpoint if different, change here
+ 
+        payload = {
+            "model": "ask-model",             # <-- change model name if needed
+            "query": f"Give only the single best official website URL for the company: {company_name}. Return only URL.",
+            "max_tokens": 50
+        }
+ 
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {ASK_API_KEY}"
+        }
+ 
+        r = requests.post(url, json=payload, headers=headers, timeout=15)
+        if r.status_code == 200:
+            text = r.json().get("answer", "")
+            if text and "http" in text:
+                return text.strip()
+        return None
+    except:
+        return None
+ 
+ 
+# -------------------------------------------------------------
+# STEP 3: Fallback → Pick best URL from given CSV columns
+# -------------------------------------------------------------
+def clean_url(url):
+    if pd.isna(url):
+        return None
+    url = str(url).strip().replace(" ", "")
+    if url.startswith("http"):
+        return url
+    return None
+ 
+def fallback_best_url(company, url_list):
+    """
+    Picks best possible URL from the CSV columns
+    """
+    urls = [clean_url(u) for u in url_list if clean_url(u)]
+    if not urls:
+        return None
+ 
+    company_words = company.lower().replace("pvt", "").replace("limited", "").split()
+    score_map = {}
+ 
+    for url in urls:
+        score = 0
+        domain = url.lower()
+ 
+        for w in company_words:
+            if len(w) > 3 and w in domain:
+                score += 1
+ 
+        score_map[url] = score
+ 
+    # Highest scored domain
+    return max(score_map, key=score_map.get)
+ 
+ 
+# -------------------------------------------------------------
+# STEP 4: Upload CSV
+# -------------------------------------------------------------
+print("Upload your CSV file:")
+uploaded = files.upload()
+ 
+file_name = list(uploaded.keys())[0]
+df = pd.read_csv(file_name)
+ 
+output = []
+ 
+# -------------------------------------------------------------
+# STEP 5: Process each company
+# -------------------------------------------------------------
+for index, row in df.iterrows():
+    company = str(row[0]).strip()
+    websites = row[1:].tolist()
+ 
+    print(f"\n🔍 Processing: {company}")
+ 
+    # Try Ask API
+    final_url = ask_api_best_website(company)
+ 
+    if final_url:
+        print("✅ API found:", final_url)
+    else:
+        # fallback
+        final_url = fallback_best_url(company, websites)
+        print("⚠️ Fallback result:", final_url)
+ 
+    output.append([company, final_url])
+ 
+ 
+# -------------------------------------------------------------
+# STEP 6: Save Output
+# -------------------------------------------------------------
+out_df = pd.DataFrame(output, columns=["Company Name", "Final Website"])
+out_df.to_csv("cleaned_best_websites.csv", index=False)
+ 
+print("\n🎉 DONE! Download your final CSV")
+files.download("cleaned_best_websites.csv")
+ 
