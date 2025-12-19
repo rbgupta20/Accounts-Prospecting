@@ -1,32 +1,44 @@
-# =============================
-# 📦 Install dependencies
-# =============================
+# =============================================
+# 📦 STEP 1: Install dependencies
+# =============================================
 !pip install pandas beautifulsoup4 requests lxml fake-useragent
 
-# =============================
-# 📚 Import libraries
-# =============================
+# =============================================
+# 📚 STEP 2: Import libraries
+# =============================================
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 from google.colab import files
 from fake_useragent import UserAgent
 import time
-import random
+import urllib3
 
-# =============================
-# 🌐 Utility: Smart Request Handler
-# =============================
+# Disable SSL warnings
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# =============================================
+# 🌐 STEP 3: Smart Request Handler
+# =============================================
 ua = UserAgent()
 
 def smart_get(url, retries=3):
+    # ❌ Skip invalid URLs
+    if not isinstance(url, str) or not url.strip():
+        return "Error: Invalid or empty URL"
+
+    url = url.strip()
+
+    # Auto add https if missing
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+
     for attempt in range(retries):
         try:
             headers = {
                 "User-Agent": ua.random,
                 "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
                 "Accept-Language": "en-US,en;q=0.9",
-                "Connection": "keep-alive",
             }
 
             response = requests.get(
@@ -34,49 +46,40 @@ def smart_get(url, retries=3):
                 timeout=12,
                 headers=headers,
                 allow_redirects=True,
-                verify=False  # bypass SSL handshake failures
+                verify=False
             )
 
-            # If good response
             if response.status_code == 200:
                 return response.text
 
-            # If 403/406/429 → wait & retry with new header
             if response.status_code in [403, 406, 429, 500, 502]:
                 time.sleep(2 + attempt)
                 continue
 
-            # Otherwise return error
             return f"Error: HTTP {response.status_code}"
 
         except Exception as e:
-            # try HTTP instead of HTTPS once
-            if url.startswith("https://"):
-                try_url = "http://" + url.replace("https://", "")
-                url = try_url
-                continue
-
             if attempt == retries - 1:
                 return f"Error: {e}"
-
             time.sleep(1)
 
     return "Error: Max retries failed"
 
 
-# =============================
-# 🌐 Extract Text from HTML
-# =============================
+# =============================================
+# 🧹 STEP 4: Extract Clean Text from HTML
+# =============================================
 def extract_text(url):
     html = smart_get(url)
+
     if html is None or str(html).startswith("Error"):
         return html
 
     try:
         soup = BeautifulSoup(html, "lxml")
 
-        # Remove scripts/styles
-        for tag in soup(["script", "style", "noscript"]):
+        # Remove junk
+        for tag in soup(["script", "style", "noscript", "iframe"]):
             tag.decompose()
 
         text = soup.get_text(" ", strip=True)
@@ -86,10 +89,10 @@ def extract_text(url):
         return f"Error parsing HTML: {e}"
 
 
-# =============================
-# 📁 Step 1 – Upload CSV
-# =============================
-print("📁 Upload your CSV containing company links...")
+# =============================================
+# 📁 STEP 5: Upload CSV
+# =============================================
+print("📁 Upload your CSV containing company website links")
 uploaded = files.upload()
 
 file_name = next(iter(uploaded))
@@ -103,29 +106,38 @@ for col in df.columns:
         break
 
 if link_column is None:
-    raise ValueError("❌ No column with 'link' or 'url' found.")
+    raise ValueError("❌ No column containing 'link' or 'url' found")
 
 print(f"🔗 Using column: {link_column}")
 
-# =============================
-# 🔄 Step 3 – Process all links
-# =============================
+# Clean data
+df = df.dropna(subset=[link_column])
+df[link_column] = df[link_column].astype(str)
+
+# =============================================
+# 🔄 STEP 6: Process all links
+# =============================================
 results = []
 
 for url in df[link_column]:
     print("➡ Extracting:", url)
-    text = extract_text(url)
+
+    try:
+        text = extract_text(url)
+    except Exception as e:
+        text = f"Error: {e}"
+
     results.append({
         "Company Link": url,
         "Extracted Raw Text": text
     })
 
-# =============================
-# 💾 Step 4 – Save Output CSV
-# =============================
+# =============================================
+# 💾 STEP 7: Save Output
+# =============================================
 output_df = pd.DataFrame(results)
 output_path = "output_text_extracted.csv"
 output_df.to_csv(output_path, index=False)
 
-print("✅ Extraction completed! Downloading file...")
+print("✅ Extraction completed successfully!")
 files.download(output_path)
